@@ -2,27 +2,64 @@ import requests
 
 
 class Lyft:
-    URL = "https://api.lyft.com/v1/phoneauth"
-
+    TOKEN_URL = "https://api.lyft.com/oauth2/access_token"
+    PHONEAUTH_URL = "https://api.lyft.com/v1/phoneauth"
+    
+    
+    # MAIN
     def __init__(self, __phone_number):
-        try:
-            response = requests.post(url=self.URL,
-                                     headers=self.generate_headers(),
-                                     json=self.generate_body(__phone_number))
+        __headers = self.generate_headers_for_token()
+        __tokens = self.send_auth_request(__headers)
+        __cookie = self.generate_cookie(__tokens)
+        __headers = self.generate_headers_for_phoneauth(__cookie)
+        __body = self.generate_body(__phone_number)
 
-            print(response.content, response.status_code)
+        self.send_phone_auth_request(__headers, __body)
+
+        
+    # REQUESTS
+    def send_phone_auth_request(self, __headers, __body):
+        try:
+            response = requests.post(url=self.PHONEAUTH_URL,
+                                     headers=__headers,
+                                     json=__body)
+
+            print("Response: ", response.content, response.status_code)
+            print("Request successfully sent!")
 
         except requests.exceptions.RequestException as e:
             print(f"Request exception occurred: {e}")
 
+    def send_auth_request(self, __headers):
+        __data = {"grant_type": "client_credentials"}
+        try:
+            response = requests.post(url=self.TOKEN_URL,
+                                     headers=__headers,
+                                     data=__data)
+
+            lyft_access_token = response.cookies.get("lyftAccessToken")
+            sticky_lyft_browser_id = response.cookies.get("stickyLyftBrowserId")
+
+            print("Response: ", response.content, response.status_code)
+            print(f"lyftAccessToken: {lyft_access_token}")
+            print(f"stickyLyftBrowserId: {sticky_lyft_browser_id}")
+            print("Request successfully sent!\n")
+
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Request exception occurred: {e}")
+
+        return lyft_access_token, sticky_lyft_browser_id
+
+    
+    # STATIC METHODS
     @staticmethod
-    def generate_headers():
+    def generate_headers_for_phoneauth(__cookie):
         return {
             "Content-Type": "application/json",
             "Authority": "api.lyft.com",
             "Path": "/v1/phoneauth",
             "Scheme": "https",
-            "Cookie": Lyft.generate_cookie(),
+            "Cookie": __cookie,
             "Lyft-Version": "2017-09-18",
             "Origin": "https://account.lyft.com",
             "Referer": "https://account.lyft.com/",
@@ -35,14 +72,14 @@ class Lyft:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
             "X-Locale-Language": "en-US"
         }
-    
+
     @staticmethod
-    def generate_cookie():
+    def generate_cookie(__tokens):
+        __lyft_access_token, __sticky_lyft_browser_id = __tokens
         return 'sessId=cc185167-cab4-40d0-8875-53e70ace36f6L1683654952; ' \
                '_gcl_au=1.1.2102413292.1683654954; ' \
-               'lyftAccessToken=Pn2v7dW1iqOjy2ewI9tGHmrjUYF94N2lBtYN+gnVwM2TGXgFDSJGM67M/j3Sq+ibj0XBWOJnUwMdle8XoM6pfk65Y5sdXs5LcNhBdETLGqI4JZettQ450sM=; ' \
-               'stickyLyftBrowserId=95d_bCVG_FyPsh-ONdOT7P5w; ' \
-               'OptanonConsent=isGpcEnabled=0&datestamp=Tue+May+09+2023+21%3A55%3A57+GMT%2B0400+(Armenia+Standard+Time)&' \
+               f'lyftAccessToken={__lyft_access_token}; ' \
+               f'stickyLyftBrowserId={__sticky_lyft_browser_id}; ' \
                'version=202211.2.0&' \
                'isIABGlobal=false&' \
                'hosts=&' \
@@ -71,8 +108,29 @@ class Lyft:
             "message_format": "sms_basic"
         }
 
+    @staticmethod
+    def generate_headers_for_token():
+        return {
+            "Authority": "api.lyft.com",
+            "Path": "/oauth2/access_token",
+            "Scheme": "https",
+            "Lyft-Version": "2017-09-18",
+            "Origin": "https://account.lyft.com",
+            "Referer": "https://account.lyft.com/",
+            "Sec-Ch-Ua": '"Google Chrome";v="113", "Chromium";v="113", "Not-A.Brand";v="24"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"',
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-site",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+            "X-Locale-Language": "en-US",
+            "Authorization": "Basic d0dldWh3RE5MNmNwOllicHpIdnN0Y1E2UW1NTWZlUVJ2dnI1ZUl0UTI5S1JR",
+            "X-Authorization": "Basic d0dldWh3RE5MNmNwOllicHpIdnN0Y1E2UW1NTWZlUVJ2dnI1ZUl0UTI5S1JR"
+        }
+
 
 if __name__ == "__main__":
-  
-    # https://receive-smss.com/sms/447538304679/
+
+    # SMS can be checked from here - https://receive-smss.com/sms/447538304679/
     Lyft("+447538304679")
